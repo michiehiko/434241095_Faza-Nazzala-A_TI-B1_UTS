@@ -20,7 +20,7 @@ class _AdminMainNavigationState extends State<AdminMainNavigation> {
     const AdminDashboardScreen(),
     const AdminTicketListScreen(),
     const NotificationScreen(),
-    const ProfileScreen(isAdmin: true),
+    const ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {

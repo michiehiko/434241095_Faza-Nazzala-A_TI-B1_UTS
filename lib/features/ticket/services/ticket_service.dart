@@ -1,42 +1,34 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:http/http.dart' as http; 
 
 class TicketService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Panggil mesin Supabase
+  final supabase = Supabase.instance.client;
 
-  // --- TARUH DATA CLOUDINARY KAMU DI SINI ---
   final String _cloudName = 'dg23odyei'; 
   final String _uploadPreset = 'T78UGAS31';
 
-  // Mesin upload Cloudinary Versi Kebal Slash (Multipart)
+  // Mesin upload Cloudinary Versi Kebal Slash (Multipart) - TETAP SAMA
   Future<String?> _uploadImage(Uint8List imageBytes, String fileName) async {
     try {
       var uri = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/image/upload');
       
-      // Kita pakai mode pengiriman form/file murni (Multipart)
       var request = http.MultipartRequest('POST', uri);
-
-      // Masukin kunci pintu Cloudinary-nya
       request.fields['upload_preset'] = _uploadPreset;
 
       var multipartFile = http.MultipartFile.fromBytes(
         'file',
         imageBytes,
-        // Tambahin waktu saat ini biar namanya selalu unik tiap detik!
         filename: 'bukti_${DateTime.now().millisecondsSinceEpoch}.jpg', 
       );
 
       request.files.add(multipartFile);
 
-      // Mulai proses pengiriman
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
 
-      // Cek apakah server membalas dengan status 200 (Sukses)
       if (response.statusCode == 200) {
         var jsonResponse = jsonDecode(response.body);
         return jsonResponse['secure_url']; 
@@ -50,7 +42,7 @@ class TicketService {
     }
   }
 
-  // Fungsi membuat tiket tetap sama persis!
+  // Fungsi membuat tiket versi Supabase
   Future<bool> createTicket({
     required String title,
     required String category,
@@ -59,27 +51,31 @@ class TicketService {
     String? fileName,
   }) async {
     try {
-      User? currentUser = _auth.currentUser;
+      // Ambil data user yang sedang login dari Supabase Auth
+      final User? currentUser = supabase.auth.currentUser;
       if (currentUser == null) return false;
 
       String? imageUrl;
       
+      // Proses upload gambar kalau ada
       if (imageBytes != null && fileName != null) {
         imageUrl = await _uploadImage(imageBytes, fileName);
       }
 
+      // Susun data sesuai dengan NAMA KOLOM di tabel Supabase (snake_case)
       Map<String, dynamic> ticketData = {
         'title': title,
         'category': category,
         'description': description,
         'status': 'Open',
-        'userId': currentUser.uid,
-        'userEmail': currentUser.email,
-        'imageUrl': imageUrl, 
-        'createdAt': FieldValue.serverTimestamp(),
+        'user_id': currentUser.id, // Sesuaikan dengan UUID user
+        'image_url': imageUrl, 
+        // createdAt nggak perlu dikirim karena di SQL kita udah set DEFAULT NOW()
       };
 
-      await _db.collection('tickets').add(ticketData);
+      // Tembak data ke tabel 'tickets'
+      await supabase.from('tickets').insert(ticketData);
+      
       return true;
     } catch (e) {
       print("Error Create Ticket: " + e.toString());

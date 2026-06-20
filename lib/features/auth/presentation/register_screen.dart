@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../ticket/presentation/common/widgets/custom_app_bar.dart';
 import '../services/auth_service.dart'; 
 
@@ -47,10 +48,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true; 
     });
 
-    // Panggil fungsi register dari AuthService
-    final user = await _authService.registerWithEmail(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
+    final bool isSuccess = await _authService.register(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+      name: _nameController.text.trim(), 
+      nomorInduk: _nimController.text.trim(),
     );
 
     setState(() {
@@ -58,7 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     // Cek apakah berhasil
-    if (user != null) {
+    if (isSuccess) {
       // NOTE: Nanti data Nama dan NIM bisa kita simpan ke Firestore Database di sini
       
       if (mounted) {

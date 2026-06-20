@@ -58,4 +58,7 @@ ios/GoogleService-Info.plist
 .firebase/
 firebase-debug.log
 firestore-debug.log
-ui-debug.log
+ui-debug.log    
+
+# Supabase configuration
+.env

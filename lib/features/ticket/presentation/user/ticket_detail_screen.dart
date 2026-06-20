@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../common/widgets/custom_app_bar.dart';
 
 class TicketDetailScreen extends StatelessWidget {
   final String ticketId;
 
-  // Kita hapus parameter isDone dari sini karena statusnya bakal ditarik langsung dari database
   const TicketDetailScreen({
     super.key,
     required this.ticketId,
@@ -14,36 +13,39 @@ class TicketDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final supabase = Supabase.instance.client; // Panggil mesin Supabase
 
     return Scaffold(
       appBar: const CustomAppBar(title: 'Detail Tiket'),
-      // Pasang StreamBuilder khusus buat baca 1 dokumen
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('tickets')
-            .doc(ticketId)
-            .snapshots(),
+      // Tipe datanya ganti jadi List of Map
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        // Query stream Supabase
+        stream: supabase
+            .from('tickets')
+            .stream(primaryKey: ['id'])
+            .eq('id', ticketId)
+            .limit(1),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('Data tiket tidak ditemukan.'));
           }
 
-          // Ekstrak data tiketnya
-          var ticket = snapshot.data!.data() as Map<String, dynamic>;
+          // Ekstrak data tiketnya (ambil elemen pertama dari list)
+          var ticket = snapshot.data!.first;
           bool isDone = ticket['status'] == 'Selesai';
           String title = ticket['title'] ?? 'Tanpa Judul';
           String desc = ticket['description'] ?? 'Tidak ada deskripsi.';
-          String? imageUrl = ticket['imageUrl'];
+          // Sesuaikan dengan nama kolom SQL
+          String? imageUrl = ticket['image_url']; 
           
-          // Format tanggalnya biar cantik
+          // Format tanggal dari String ke DateTime
           String dateString = 'Waktu tidak diketahui';
-          if (ticket['createdAt'] != null) {
-            DateTime dt = (ticket['createdAt'] as Timestamp).toDate();
-            // Format jadi HH:MM
+          if (ticket['created_at'] != null) {
+            DateTime dt = DateTime.parse(ticket['created_at']).toLocal();
             String hours = dt.hour.toString().padLeft(2, '0');
             String minutes = dt.minute.toString().padLeft(2, '0');
             dateString = '${dt.day}/${dt.month}/${dt.year}, $hours:$minutes WIB';

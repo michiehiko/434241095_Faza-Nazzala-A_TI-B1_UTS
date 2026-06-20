@@ -1,38 +1,66 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Panggil variabel global supabase yang udah kita bikin di main.dart
+  final supabase = Supabase.instance.client;
 
-  // Regist
-  Future<User?> registerWithEmail(String email, String password) async {
+  // 1. Fungsi Registrasi (Buat Akun Baru)
+  Future<bool> register({
+    required String email,
+    required String password,
+    required String name,
+    required String nomorInduk, 
+  }) async {
     try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-        email: email, 
-        password: password
+      final AuthResponse res = await supabase.auth.signUp(
+        email: email,
+        password: password,
       );
-      return result.user;
+
+      final User? user = res.user;
+
+      if (user != null) {
+        await supabase.from('profiles').insert({
+          'id': user.id, 
+          'email': email,
+          'name': name,
+          'nomor_induk': nomorInduk, // <-- Masukin ke kolom baru
+          'role': 'mahasiswa', 
+        });
+        return true;
+      }
+      return false;
     } catch (e) {
-      print("Error Register: " + e.toString());
-      return null;
+      print("Error Register: ${e.toString()}");
+      return false;
     }
   }
 
-  // Login
-  Future<User?> loginWithEmail(String email, String password) async {
+  // 2. Fungsi Login
+  Future<bool> login({
+    required String email,
+    required String password,
+  }) async {
     try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
-        email: email, 
-        password: password
+      final AuthResponse res = await supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
       );
-      return result.user;
+      
+      return res.user != null;
     } catch (e) {
-      print("Error Login: " + e.toString());
-      return null;
+      print("Error Login: ${e.toString()}");
+      return false;
     }
   }
 
-  // Logout
+  // 3. Fungsi Logout
   Future<void> logout() async {
-    await _auth.signOut();
+    await supabase.auth.signOut();
+  }
+
+  // 4. Cek siapa yang lagi login sekarang (berguna buat nampilin profil)
+  User? getCurrentUser() {
+    return supabase.auth.currentUser;
   }
 }

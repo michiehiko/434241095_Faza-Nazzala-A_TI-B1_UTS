@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'register_screen.dart';
 import 'reset_password_screen.dart';
 import '../../ticket/presentation/admin/admin_main_navigation.dart';
 import '../../ticket/presentation/user/main_navigation.dart';
-import '../services/auth_service.dart'; // Import service Firebase kita
+import '../services/auth_service.dart'; 
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -44,16 +45,18 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final user = await _authService.loginWithEmail(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
+    final bool isSuccess = await _authService.login(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
     );
+    
+    // Ganti logika pengecekan dari 'user != null' menjadi 'isSuccess'
 
     setState(() {
       _isLoading = false;
     });
 
-    if (user != null) {
+    if (isSuccess) {
       if (mounted) {
         // Jika berhasil login, arahkan ke halaman utama User
         // NOTE: Nanti kita perlu tambahkan logika pengecekan Role (Admin vs User) di sini
