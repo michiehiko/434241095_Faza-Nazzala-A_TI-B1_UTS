@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'admin_ticket_detail_screen.dart';
-import '../user/create_ticket_screen.dart'; // Import layar form tiket mahasiswa
+import '../staff/staff_ticket_detail_screen.dart'; 
+import '../user/create_ticket_screen.dart'; 
 
-class AdminTicketListScreen extends StatelessWidget {
-  const AdminTicketListScreen({super.key});
+class StaffTicketListScreen extends StatelessWidget {
+  const StaffTicketListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
     final colorScheme = Theme.of(context).colorScheme;
+    final currentUserId = supabase.auth.currentUser?.id;
 
-    // Dibungkus Scaffold transparan agar bisa memasang FloatingActionButton
+    if (currentUserId == null) {
+      return const Center(child: Text('Sesi telah berakhir.'));
+    }
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       
-      // Tombol Buat Tiket untuk Admin
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
@@ -33,12 +36,13 @@ class AdminTicketListScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      
-      // CCTV StreamBuilder (Kode aslimu tetap aman di sini)
+
+      // CCTV StreamBuilder untuk Staff Ahli
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: supabase
             .from('tickets')
             .stream(primaryKey: ['id'])
+            // HAPUS filter dari database karena stream tidak support .or()
             .order('created_at', ascending: false), 
         builder: (context, snapshot) {
           
@@ -50,14 +54,43 @@ class AdminTicketListScreen extends StatelessWidget {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          final tickets = snapshot.data ?? [];
+          final allTickets = snapshot.data ?? [];
+
+          // =======================================================
+          // FILTER LOKAL: Saring tiket hanya yang miliknya / buatannya
+          // =======================================================
+          final tickets = allTickets.where((ticket) {
+            final isAssignedToMe = ticket['assigned_to'] == currentUserId;
+            final isCreatedByMe = ticket['user_id'] == currentUserId;
+            return isAssignedToMe || isCreatedByMe;
+          }).toList();
+          // =======================================================
 
           if (tickets.isEmpty) {
-            return const Center(child: Text('Belum ada tiket masuk.'));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 64,
+                    color: colorScheme.onSurface.withOpacity(0.3),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Belum ada tiket yang ditugaskan kepada Anda.',
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.only(top: 16, bottom: 80), // Bottom padding ditambah agar tidak tertutup tombol FAB
+            padding: const EdgeInsets.only(top: 16, bottom: 80), 
             itemCount: tickets.length, 
             itemBuilder: (context, index) {
               final ticket = tickets[index];
@@ -67,7 +100,6 @@ class AdminTicketListScreen extends StatelessWidget {
               final status = ticket['status']?.toString().toLowerCase() ?? 'open';
               
               bool isDone = status == 'closed' || status == 'selesai';
-              
               final pelapor = ticket['nama_pelapor'] ?? 'Mahasiswa'; 
 
               return Card(
@@ -126,7 +158,7 @@ class AdminTicketListScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => AdminTicketDetailScreen(
+                        builder: (context) => StaffTicketDetailScreen( 
                           ticketId: ticketId, 
                           initialIsDone: isDone,
                         ),

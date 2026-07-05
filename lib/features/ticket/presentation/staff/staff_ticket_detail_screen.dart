@@ -1,40 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../common/widgets/custom_app_bar.dart';
+import '../common/widgets/custom_app_bar.dart'; 
 
-class AdminTicketDetailScreen extends StatefulWidget {
+class StaffTicketDetailScreen extends StatefulWidget {
   final String ticketId;
   final bool initialIsDone;
 
-  const AdminTicketDetailScreen({
+  const StaffTicketDetailScreen({
     super.key,
     required this.ticketId,
     required this.initialIsDone,
   });
 
   @override
-  State<AdminTicketDetailScreen> createState() =>
-      _AdminTicketDetailScreenState();
+  State<StaffTicketDetailScreen> createState() =>
+      _StaffTicketDetailScreenState();
 }
 
-class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
-  late Future<Map<String, dynamic>> _dataFuture;
+class _StaffTicketDetailScreenState extends State<StaffTicketDetailScreen> {
+  late Future<Map<String, dynamic>> _ticketFuture;
   final supabase = Supabase.instance.client;
   
   final TextEditingController _balasanController = TextEditingController();
-  bool _isSaving = false;
+  bool _isReplying = false;
+  bool _isClosing = false;
   
   String? _ticketOwnerId; 
   String _dbStatus = 'open'; 
-  
-  String? _assignedTo;
-  String? _initialAssignedTo;
-  List<Map<String, dynamic>> _staffList = [];
 
   @override
   void initState() {
     super.initState();
-    _dataFuture = _fetchData();
+    _ticketFuture = _fetchTicketDetail();
   }
 
   @override
@@ -43,14 +40,7 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
     super.dispose();
   }
 
-  Future<Map<String, dynamic>> _fetchData() async {
-    final staffResponse = await supabase
-        .from('profiles')
-        .select('id, name') 
-        .eq('role', 'staff_ahli');
-        
-    _staffList = List<Map<String, dynamic>>.from(staffResponse);
-
+  Future<Map<String, dynamic>> _fetchTicketDetail() async {
     final data = await supabase
         .from('tickets')
         .select()
@@ -59,11 +49,6 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
     
     _ticketOwnerId = data['user_id']?.toString(); 
     _dbStatus = data['status']?.toString().toLowerCase() ?? 'open';
-    
-    if (_initialAssignedTo == null) {
-      _assignedTo = data['assigned_to']?.toString();
-      _initialAssignedTo = _assignedTo;
-    }
     
     return data;
   }
@@ -74,6 +59,7 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
   Future<void> _safeSendNotification(String? targetUserId, String message) async {
     if (targetUserId == null) return;
     try {
+      // Cek apakah user benar-benar ada di tabel profiles
       final profileCheck = await supabase
           .from('profiles')
           .select('id')
@@ -94,72 +80,94 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
     }
   }
 
-  Future<void> _handleSimpanPerubahan() async {
-    setState(() => _isSaving = true);
+  Future<void> _handleKirimBalasan() async {
+    if (_balasanController.text.trim().isEmpty) return;
+    setState(() => _isReplying = true);
 
     try {
       final currentUserId = supabase.auth.currentUser?.id;
       if (currentUserId == null) throw "Sesi login berakhir";
 
-      bool isAssignedChanged = _assignedTo != _initialAssignedTo;
+      // 1. Simpan Komentar (User ID Dijamin Masuk!)
+      await supabase.from('comments').insert({
+        'ticket_id': widget.ticketId, 
+        'user_id': currentUserId, 
+        'message': _balasanController.text.trim(),
+      });
+      
+      // 2. Kirim Notif ke Mahasiswa (Pelapor)
+      await _safeSendNotification(
+        _ticketOwnerId, 
+        'Teknisi membalas: "${_balasanController.text.trim()}"',
+      );
 
-      // 1. Logic Assign Teknisi
-      if (isAssignedChanged && _assignedTo != null) {
-        await supabase.from('tickets').update({
-          'assigned_to': _assignedTo,
-          'status': 'in_progress', 
-        }).eq('id', widget.ticketId);
-
-        // Notif ke Teknisi
+      // 3. Kirim Notif ke Semua Admin
+      final admins = await supabase.from('profiles').select('id').eq('role', 'admin');
+      for (var admin in admins) {
         await _safeSendNotification(
-          _assignedTo, 
-          'Tugas Baru: Tiket #${widget.ticketId} telah didelegasikan kepada Anda.',
-        );
-
-        // Notif ke Pelapor
-        await _safeSendNotification(
-          _ticketOwnerId, 
-          'Tiket #${widget.ticketId} telah diterima dan sedang dikerjakan oleh Tim IT.',
+          admin['id']?.toString(), 
+          'Teknisi membalas Tiket #${widget.ticketId}: "${_balasanController.text.trim()}"',
         );
       }
 
-      // 2. Logic Balasan Komentar Admin
-      if (_balasanController.text.isNotEmpty) {
-        await supabase.from('comments').insert({
-          'ticket_id': widget.ticketId, 
-          'user_id': currentUserId, 
-          'message': _balasanController.text.trim(),
+      if (mounted) {
+        _balasanController.clear();
+        setState(() {
+          _ticketFuture = _fetchTicketDetail();
         });
-        
-        // Notif ke Pelapor (Mahasiswa)
-        await _safeSendNotification(
-          _ticketOwnerId, 
-          'Admin membalas Tiket #${widget.ticketId}: "${_balasanController.text.trim()}"',
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Balasan berhasil dikirim!')),
         );
-        
-        // Notif ke Teknisi (Jika tiket ini sudah ada teknisinya)
-        if (_assignedTo != null) {
-          await _safeSendNotification(
-            _assignedTo, 
-            'Admin memberi instruksi di Tiket #${widget.ticketId}: "${_balasanController.text.trim()}"',
-          );
-        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengirim balasan: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isReplying = false);
+    }
+  }
+
+  Future<void> _handleTutupTiket() async {
+    setState(() => _isClosing = true);
+
+    try {
+      await supabase
+          .from('tickets')
+          .update({'status': 'closed'})
+          .eq('id', widget.ticketId);
+
+      // Notif ke Mahasiswa
+      await _safeSendNotification(
+        _ticketOwnerId, 
+        'Tiket #${widget.ticketId} telah SELESAI dikerjakan dan ditutup oleh Teknisi.',
+      );
+      
+      // Notif ke Admin
+      final admins = await supabase.from('profiles').select('id').eq('role', 'admin');
+      for (var admin in admins) {
+        await _safeSendNotification(
+          admin['id']?.toString(), 
+          'Tiket #${widget.ticketId} telah DITUTUP (Selesai) oleh Staff Ahli.',
+        );
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Perubahan & delegasi berhasil disimpan!')),
+          const SnackBar(content: Text('Tiket berhasil diselesaikan (Closed)!')),
         );
         Navigator.pop(context); 
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan: $e')),
+          SnackBar(content: Text('Gagal menutup tiket: $e')),
         );
       }
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted) setState(() => _isClosing = false);
     }
   }
 
@@ -171,10 +179,15 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
       appBar: CustomAppBar(title: 'Kelola Tiket #${widget.ticketId}'),
       body: SafeArea(
         child: FutureBuilder<Map<String, dynamic>>(
-          future: _dataFuture,
+          future: _ticketFuture,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-            if (snapshot.hasError) return Center(child: Text('Error memuat data: ${snapshot.error}'));
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(child: Text('Error memuat tiket: ${snapshot.error}'));
+            }
 
             final data = snapshot.data!;
             final pelapor = data['nama_pelapor'] ?? 'Mahasiswa';
@@ -182,7 +195,6 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
             final imageUrl = data['image_url']; 
             
             bool isClosed = _dbStatus == 'closed' || _dbStatus == 'selesai';
-            bool isInProgress = _dbStatus == 'in_progress' || _dbStatus == 'sedang dikerjakan';
 
             return Column(
               children: [
@@ -195,55 +207,20 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Status Tiket:', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                            Text('Status Saat Ini:', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isClosed ? Colors.green.withOpacity(0.1) : (isInProgress ? Colors.blue.withOpacity(0.1) : Colors.orange.withOpacity(0.1)),
+                                color: isClosed ? Colors.green.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: isClosed ? Colors.green : (isInProgress ? Colors.blue : Colors.orange)),
+                                border: Border.all(color: isClosed ? Colors.green : Colors.blue),
                               ),
                               child: Text(
-                                isClosed ? 'CLOSED' : (isInProgress ? 'IN PROGRESS' : 'OPEN / BARU'),
-                                style: TextStyle(fontWeight: FontWeight.bold, color: isClosed ? Colors.green : (isInProgress ? Colors.blue : Colors.orange)),
+                                isClosed ? 'CLOSED (Selesai)' : 'IN PROGRESS',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: isClosed ? Colors.green : Colors.blue),
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        Text('Tugaskan ke Teknisi', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceVariant.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _assignedTo,
-                              hint: Text(
-                                _staffList.isEmpty ? 'Belum ada data Teknisi' : 'Pilih Teknisi (Staff Ahli)...',
-                                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
-                              ),
-                              isExpanded: true,
-                              icon: Icon(Icons.engineering_rounded, color: colorScheme.primary),
-                              items: _staffList.map((staff) {
-                                final namaStaff = staff['name'] ?? 'Tanpa Nama';
-                                return DropdownMenuItem<String>(
-                                  value: staff['id'].toString(),
-                                  child: Text(namaStaff, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                );
-                              }).toList(),
-                              onChanged: isClosed ? null : (String? newValue) {
-                                setState(() {
-                                  _assignedTo = newValue;
-                                });
-                              },
-                            ),
-                          ),
                         ),
                         const SizedBox(height: 24),
                         Divider(color: colorScheme.outline.withOpacity(0.2)),
@@ -317,19 +294,33 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
                         const SizedBox(height: 24),
 
                         if (!isClosed) ...[
-                          Text('Kirim Pesan (Opsional)', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                          Text('Kirim Balasan', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                           const SizedBox(height: 8),
-                          TextField(
-                            controller: _balasanController, 
-                            maxLines: 2,
-                            decoration: InputDecoration(
-                              hintText: 'Tulis pesan untuk pelapor atau teknisi...',
-                              filled: true,
-                              fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _balasanController, 
+                                  maxLines: 1,
+                                  decoration: InputDecoration(
+                                    hintText: 'Tulis respon...',
+                                    filled: true,
+                                    fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              IconButton.filled(
+                                onPressed: _isReplying ? null : _handleKirimBalasan,
+                                icon: _isReplying 
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+                                  : const Icon(Icons.send_rounded),
+                                style: IconButton.styleFrom(backgroundColor: colorScheme.primary, padding: const EdgeInsets.all(16)),
+                              )
+                            ],
                           ),
-                        ],
+                        ]
                       ],
                     ),
                   ),
@@ -343,14 +334,14 @@ class _AdminTicketDetailScreenState extends State<AdminTicketDetailScreen> {
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _handleSimpanPerubahan, 
-                        icon: _isSaving 
+                        onPressed: _isClosing ? null : _handleTutupTiket, 
+                        icon: _isClosing 
                             ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                            : const Icon(Icons.save_rounded),
-                        label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Perubahan', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            : const Icon(Icons.check_circle_rounded),
+                        label: Text(_isClosing ? 'Memproses...' : 'Selesaikan Pekerjaan (Close)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
-                          foregroundColor: colorScheme.onPrimary,
+                          backgroundColor: Colors.green, 
+                          foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),

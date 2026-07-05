@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
-import 'admin_dashboard_screen.dart';
-import 'admin_ticket_list_screen.dart';
-import '../common/profile_screen.dart';
+import 'staff_dashboard_screen.dart';
+import 'staff_ticket_list_screen.dart';
 import '../common/notification_screen.dart';
+import '../common/profile_screen.dart';
 import '../../../../main.dart';
 import '../common/widgets/custom_app_bar.dart';
 
-class AdminMainNavigation extends StatefulWidget {
-  const AdminMainNavigation({super.key});
+class StaffMainNavigation extends StatefulWidget {
+  const StaffMainNavigation({super.key});
 
   @override
-  State<AdminMainNavigation> createState() => _AdminMainNavigationState();
+  State<StaffMainNavigation> createState() => _StaffMainNavigationState();
 }
 
-class _AdminMainNavigationState extends State<AdminMainNavigation> {
+class _StaffMainNavigationState extends State<StaffMainNavigation> {
   int _selectedIndex = 0;
 
-  // Mengganti ProfileScreen dengan AdminUserListScreen di tab ke-4
   final List<Widget> _pages = [
-    const AdminDashboardScreen(),
-    const AdminTicketListScreen(),
+    const StaffDashboardScreen(),
+    const StaffTicketListScreen(),
     const NotificationScreen(),
-    const ProfileScreen(), 
+    const ProfileScreen(), // Profil yang sama, nanti otomatis menyesuaikan role
   ];
 
   void _onItemTapped(int index) {
@@ -36,7 +35,7 @@ class _AdminMainNavigationState extends State<AdminMainNavigation> {
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: 'Portal Helpdesk',
+        title: 'Portal Staff Ahli',
         actions: [
           IconButton(
             icon: Icon(
@@ -68,16 +67,16 @@ class _AdminMainNavigationState extends State<AdminMainNavigation> {
             label: 'Overview',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.list_alt_rounded),
-            label: 'Antrean',
+            icon: Icon(Icons.engineering_rounded), // Ikon teknisi
+            label: 'Tugas',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.notifications_rounded),
             label: 'Notifikasi',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.admin_panel_settings_rounded),
-            label: 'Sistem', // Label tetap, tapi fungsi sudah jadi Kelola Pengguna
+            icon: Icon(Icons.person_rounded),
+            label: 'Profil',
           ),
         ],
       ),

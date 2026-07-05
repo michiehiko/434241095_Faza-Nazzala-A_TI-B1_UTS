@@ -13,13 +13,16 @@ class TicketDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final supabase = Supabase.instance.client; // Panggil mesin Supabase
+    final supabase = Supabase.instance.client; 
+
+    // Pastikan ID tiket aman dikonversi ke Integer jika databasemu pakai INT untuk foreign key
+    final safeTicketId = int.tryParse(ticketId) ?? ticketId;
 
     return Scaffold(
       appBar: const CustomAppBar(title: 'Detail Tiket'),
-      // Tipe datanya ganti jadi List of Map
+      
+      // CCTV 1: Memantau tabel 'tickets'
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        // Query stream Supabase
         stream: supabase
             .from('tickets')
             .stream(primaryKey: ['id'])
@@ -34,15 +37,12 @@ class TicketDetailScreen extends StatelessWidget {
             return const Center(child: Text('Data tiket tidak ditemukan.'));
           }
 
-          // Ekstrak data tiketnya (ambil elemen pertama dari list)
           var ticket = snapshot.data!.first;
-          bool isDone = ticket['status'] == 'Selesai';
+          bool isDone = ticket['status'] == 'closed' || ticket['status'] == 'selesai';
           String title = ticket['title'] ?? 'Tanpa Judul';
           String desc = ticket['description'] ?? 'Tidak ada deskripsi.';
-          // Sesuaikan dengan nama kolom SQL
           String? imageUrl = ticket['image_url']; 
           
-          // Format tanggal dari String ke DateTime
           String dateString = 'Waktu tidak diketahui';
           if (ticket['created_at'] != null) {
             DateTime dt = DateTime.parse(ticket['created_at']).toLocal();
@@ -69,7 +69,7 @@ class TicketDetailScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            ticket['status'] ?? 'Open',
+                            ticket['status']?.toString().toUpperCase() ?? 'OPEN',
                             style: TextStyle(
                               color: isDone ? Colors.green : Colors.orange,
                               fontWeight: FontWeight.bold,
@@ -79,7 +79,7 @@ class TicketDetailScreen extends StatelessWidget {
                         const SizedBox(height: 16),
 
                         Text(
-                          title, // Data asli
+                          title,
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -88,7 +88,7 @@ class TicketDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Dilaporkan pada: $dateString', // Data asli
+                          'Dilaporkan pada: $dateString',
                           style: TextStyle(
                             color: colorScheme.onSurface.withOpacity(0.5),
                           ),
@@ -114,15 +114,14 @@ class TicketDetailScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                desc, // Data asli
+                                desc,
                                 style: TextStyle(
                                   height: 1.5,
                                   color: colorScheme.onSurface.withOpacity(0.8),
                                 ),
                               ),
 
-                              // Tampilkan blok gambar HANYA jika ada URL gambar
-                              if (imageUrl != null) ...[
+                              if (imageUrl != null && imageUrl.toString().isNotEmpty) ...[
                                 const SizedBox(height: 16),
                                 Divider(color: colorScheme.outline.withOpacity(0.2)),
                                 const SizedBox(height: 12),
@@ -167,35 +166,64 @@ class TicketDetailScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        if (!isDone)
-                          Text(
-                            'Belum ada tanggapan dari tim IT.',
-                            style: TextStyle(
-                              fontStyle: FontStyle.italic,
-                              color: colorScheme.onSurface.withOpacity(0.5),
-                            ),
-                          )
-                        else
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: colorScheme.outline.withOpacity(0.3),
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              // NOTE: Nanti ini juga bisa ditarik dari kolom 'reply' di database
-                              'Keluhan telah kami tindak lanjuti dan sistem sudah kembali normal. Silakan dicek kembali.',
-                              style: TextStyle(color: colorScheme.onSurface),
-                            ),
-                          ),
+                        
+                        // ==========================================
+                        // CCTV 2: Memantau tabel 'comments'
+                        // ==========================================
+                        StreamBuilder<List<Map<String, dynamic>>>(
+                          stream: supabase
+                              .from('comments')
+                              .stream(primaryKey: ['id'])
+                              .eq('ticket_id', safeTicketId) // Filter komentar khusus tiket ini
+                              .order('created_at', ascending: true), // Urut dari terlama ke terbaru
+                          builder: (context, commentSnapshot) {
+                            if (commentSnapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+
+                            final comments = commentSnapshot.data ?? [];
+
+                            if (comments.isEmpty) {
+                              return Text(
+                                'Belum ada tanggapan dari tim IT.',
+                                style: TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                  color: colorScheme.onSurface.withOpacity(0.5),
+                                ),
+                              );
+                            }
+
+                            // Render list balasan menggunakan Column
+                            return Column(
+                              children: comments.map((comment) {
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.all(16),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: colorScheme.outline.withOpacity(0.3),
+                                    ),
+                                    color: colorScheme.surfaceVariant.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    comment['message'] ?? '',
+                                    style: TextStyle(color: colorScheme.onSurface),
+                                  ),
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                        // ==========================================
                       ],
                     ),
                   ),
                 ),
 
-                // Kolom chat balasan biarkan statis dulu
+                // Kolom chat balasan (Note: ini UI-nya masih statis sesuai aslinya, 
+                // siap disambung fungsinya kalau mahasiswa juga diizinkan balas pesan Admin)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(

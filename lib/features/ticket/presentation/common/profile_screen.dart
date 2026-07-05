@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../auth/presentation/login_screen.dart';
+import '../admin/admin_user_list_screen.dart'; 
 import 'widgets/info_tile.dart';
 
 class ProfileScreen extends StatelessWidget {
-  // Parameter isAdmin di konstruktor bisa kita abaikan/hapus 
-  // karena kita bakal ngecek rolenya langsung dari database
   const ProfileScreen({super.key});
 
   @override
@@ -16,36 +15,29 @@ class ProfileScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      // Bungkus body dengan FutureBuilder buat narik data profil
       body: FutureBuilder<Map<String, dynamic>>(
         future: supabase
             .from('profiles')
             .select()
             .eq('id', currentUser?.id ?? '')
-            .single(), // Tarik 1 baris data khusus user ini
+            .single(), 
         builder: (context, snapshot) {
-          // Kondisi saat loading
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Kondisi kalau data gagal ditarik
           if (snapshot.hasError || !snapshot.hasData) {
             return const Center(child: Text('Gagal memuat informasi profil.'));
           }
 
-          // Ekstrak data dari database
           var profil = snapshot.data!;
           
-          // Logika penentu role otomatis
           bool isUserAdmin = profil['role'] == 'admin' || profil['role'] == 'staff_ahli';
           
-          // Siapkan variabel datanya
           String nama = profil['name'] ?? 'Tanpa Nama';
           String email = profil['email'] ?? 'Tanpa Email';
           String nomorInduk = profil['nomor_induk'] ?? '-';
 
-          // --- DI BAWAH INI ADALAH UI ASLI KAMU ---
           return SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
@@ -91,7 +83,7 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          nama, // Data dinamis dari DB
+                          nama, 
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -143,7 +135,7 @@ class ProfileScreen extends StatelessWidget {
                         InfoTile(
                           icon: Icons.badge_outlined,
                           title: isUserAdmin ? 'NIP / ID Staff' : 'NIM',
-                          subtitle: nomorInduk, // Data dinamis dari DB
+                          subtitle: nomorInduk, 
                         ),
                         Divider(
                           height: 1,
@@ -165,7 +157,7 @@ class ProfileScreen extends StatelessWidget {
                         InfoTile(
                           icon: Icons.email_outlined,
                           title: isUserAdmin ? 'Email Instansi' : 'Email Kampus',
-                          subtitle: email, // Data dinamis dari DB
+                          subtitle: email, 
                         ),
                         Divider(
                           height: 1,
@@ -176,7 +168,7 @@ class ProfileScreen extends StatelessWidget {
                           title: 'Nomor WhatsApp',
                           subtitle: isUserAdmin
                               ? '+62 811-0000-9999'
-                              : '+62 812-3456-7890', // Bisa dibikin dinamis nanti kalau nambah kolom HP
+                              : '+62 812-3456-7890', 
                         ),
                       ],
                     ),
@@ -202,6 +194,42 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
+                        // =========================================================
+                        // FITUR BARU: TOMBOL KELOLA PENGGUNA (HANYA UNTUK ADMIN)
+                        // =========================================================
+                        if (profil['role'] == 'admin') ...[
+                          ListTile(
+                            leading: Icon(
+                              Icons.manage_accounts_rounded,
+                              color: colorScheme.primary,
+                            ),
+                            title: Text(
+                              'Kelola Pengguna',
+                              style: TextStyle(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            trailing: Icon(
+                              Icons.chevron_right_rounded,
+                              color: colorScheme.primary,
+                            ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const AdminUserListScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          Divider(
+                            height: 1,
+                            color: colorScheme.outline.withOpacity(0.2),
+                          ),
+                        ],
+                        // =========================================================
+
                         ListTile(
                           leading: Icon(
                             Icons.settings_outlined,
@@ -266,10 +294,8 @@ class ProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        // FUNGSI LOGOUT SUPABASE DITAMBAHKAN DI SINI
                         await supabase.auth.signOut();
                         
-                        // Setelah mesin Supabase mati, lempar user ke layar login
                         if (context.mounted) {
                           Navigator.pushAndRemoveUntil(
                             context,

@@ -33,10 +33,10 @@ class DashboardScreen extends StatelessWidget {
             totalTiket = docs.length; // Hitung total semua tiket
             
             // Hitung yang aktif (statusnya belum 'Selesai')
-            tiketAktif = docs.where((tiket) => tiket['status'] != 'Selesai').length;
+            tiketAktif = docs.where((tiket) => tiket['status'] != 'closed').length;
           }
 
-          // DI BAWAH INI ADALAH UI ASLI KAMU 100%
+        
           return Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(

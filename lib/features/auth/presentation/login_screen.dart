@@ -4,6 +4,7 @@ import 'register_screen.dart';
 import 'reset_password_screen.dart';
 import '../../ticket/presentation/admin/admin_main_navigation.dart';
 import '../../ticket/presentation/user/main_navigation.dart';
+import '../../ticket/presentation/staff/staff_main_navigation.dart';
 import '../services/auth_service.dart'; 
 
 class LoginScreen extends StatefulWidget {
@@ -22,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  // Panggil service Firebase
+  // Panggil service
   final AuthService _authService = AuthService();
 
   @override
@@ -45,32 +46,42 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final bool isSuccess = await _authService.login(
+    // Panggil fungsi login dari auth_service
+    final String? role = await _authService.login(
       email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
+      password: _passwordController.text,
     );
-    
-    // Ganti logika pengecekan dari 'user != null' menjadi 'isSuccess'
 
+    if (!mounted) return;
+
+    // Matikan loading setelah mendapat balasan dari database
     setState(() {
       _isLoading = false;
     });
 
-    if (isSuccess) {
-      if (mounted) {
-        // Jika berhasil login, arahkan ke halaman utama User
-        // NOTE: Nanti kita perlu tambahkan logika pengecekan Role (Admin vs User) di sini
+    if (role != null) {
+      // Login Berhasil! Arahkan sesuai jabatannya
+      if (role == 'admin') {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MainNavigation()),
+          MaterialPageRoute(builder: (context) => const AdminMainNavigation()),
+        );
+      } else if (role == 'staff_ahli') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const StaffMainNavigation()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainNavigation()), // Punya Mahasiswa
         );
       }
     } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login gagal. Periksa kembali email dan kata sandi Anda.')),
-        );
-      }
+      // Login Gagal (role == null)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login gagal. Periksa kembali email dan password Anda.')),
+      );
     }
   }
 
@@ -120,7 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 48),
 
               TextFormField(
-                controller: _emailController, // Pasang controller
+                controller: _emailController, 
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   hintText: 'Email',
@@ -136,8 +147,8 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
 
               TextFormField(
-                controller: _passwordController, // Pasang controller
-                obscureText: _obscurePassword, // Pakai variabel status mata
+                controller: _passwordController, 
+                obscureText: _obscurePassword, 
                 decoration: InputDecoration(
                   hintText: 'Password',
                   filled: true,
@@ -185,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin, // Panggil fungsi login
+                  onPressed: _isLoading ? null : _handleLogin, 
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorScheme.primary,
                     foregroundColor: colorScheme.onPrimary,
@@ -200,38 +211,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           'Masuk ke Sistem',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // Demo login sebagai admin dibiarkan tetap ada
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AdminMainNavigation(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.admin_panel_settings),
-                  label: const Text(
-                    'Login sebagai Helpdesk (Demo)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colorScheme.primary,
-                    side: BorderSide(
-                      color: colorScheme.primary.withOpacity(0.5),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
                 ),
               ),
 

@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/presentation/splash_screen.dart';
-import 'features/auth/presentation/login_screen.dart'; 
+import 'features/auth/presentation/login_screen.dart';
 import 'features/ticket/presentation/user/dashboard_screen.dart';
 import 'features/ticket/presentation/user/ticket_list_screen.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Load file .env dulu sebelum inisialisasi Supabase
-  await dotenv.load(fileName: ".env"); 
-  
+
+  // Inisialisasi mesin Supabase
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_KEY']!,
+    url: 'https://rznxgvkfkmruzmqhiscp.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6bnhndmtma21ydXptcWhpc2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NTYyMjEsImV4cCI6MjA5NzUzMjIyMX0.W3B7DYk1toaR1J03A1066pUHiDJxaMy0aDsxN2ifryc',
   );
 
   runApp(const MyApp());
@@ -54,12 +51,14 @@ class _MyAppState extends State<MyApp> {
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF63B3ED), brightness: Brightness.dark),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF63B3ED),
+          brightness: Brightness.dark,
+        ),
         useMaterial3: true,
       ),
-      themeMode: _themeMode, 
+      themeMode: _themeMode,
       home: const SplashScreen(),
     );
   }
 }
-

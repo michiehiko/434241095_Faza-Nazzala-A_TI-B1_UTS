@@ -37,7 +37,7 @@ class AuthService {
   }
 
   // 2. Fungsi Login
-  Future<bool> login({
+ Future<String?> login({
     required String email,
     required String password,
   }) async {
@@ -47,10 +47,22 @@ class AuthService {
         password: password,
       );
       
-      return res.user != null;
+      // Jika login berhasil, cari tahu jabatannya
+      if (res.user != null) {
+        final profileData = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', res.user!.id)
+            .single();
+
+        // Kembalikan nama role, jika kosong anggap mahasiswa
+        return profileData['role'] ?? 'mahasiswa'; 
+      }
+      
+      return null; 
     } catch (e) {
       print("Error Login: ${e.toString()}");
-      return false;
+      return null;
     }
   }
 
